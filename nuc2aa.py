@@ -1,6 +1,9 @@
 import pandas as pd #need to compare to flumut
 import math #need math.ceil for aa position
 
+import pandas as pd #need to compare to flumut
+import math #need math.ceil for aa position
+
 CODON = {
     'ATA':'I', 'ATC':'I', 'ATT':'I', 'ATG':'M',
     'ACA':'T', 'ACC':'T', 'ACG':'T', 'ACT':'T',
@@ -38,31 +41,34 @@ CODON = {
     'NNN':'ambiguous'
 }
 
-def nuc2aa(mut1,gappy_ref,n_before_orf,n_after_orf): 
+def nuc2aa(mut1,gappy_ref,n_before_orf,n_after_orf,known_prior=True): 
 
     '''
-    mut1: string in format such as 1_505_G_A (1_position_BeforeNucleotide_AfterNucleotide)
+    mut1: string in format such as 505_G_A (Position_BeforeNucleotide_AfterNucleotide)
         position should be ALIGNMENT/COLUMN position, NOT nucleotide position (see note 3). It includes any gaps before
-        BeforeNucleotide is whatever the nucleotide is before mutation, AferNucleotide is after mutation
+        BeforeNucleotide is whatever the nucleotide is before mutation, AferNucleotide is after mutation. If Before_Nucleotide
+        is unknown, see variable known_prior
     gappy_ref: string, should be the reference sequence aligned to the rest of the sequences while maintaining length of alignment, e.g.
         mafft --add refseq.fasta --keeplength alignment.fasta > ref_and_alignment.fasta
     n_before_orf: interger, how many nucleotides before the open reading frame. ==21 nucleotides for HA
     n_after_orf: interger, last nucleotide position of the open reading frame. == n_before_orf + len(orf) == 1728 for HA 
+    known_prior: set to False if the prior nucleotide is unknown, and set mut1 in format Position_AfterNucleotide
 
     note1: if nucleotide is ambiguous, it will return as ambiguous
     note2: any U should be converted to T
-    note3: that this also function works with the "true" nucleotide position rather than column position i.e. in mut1 variable
+    note3: this function also works with the "true" nucleotide position rather than column position i.e. in mut1 variable
     However, the input reference sequence must not contain gaps in this case (raw sequence, not aligned)
     
-    2026/08/19
+    2026/10/19
     Deanna Tait
     '''
     
-    #just in case mutation isn't capitalized
+    #just in case mutation and/or sequence aren't capitalized
     mut1 = mut1.upper()
+    gappy_ref = gappy_ref.upper()
     
     #Get nucleotide position
-    column_pos = int(mut1.split(sep = '_')[1]) #column position, aligned to all amino acids
+    column_pos = int(mut1.split(sep = '_')[0]) #column position, aligned to all amino acids
     cut_ref = gappy_ref[0:column_pos].replace('-','') #remove all trailing and gaps. THIS LEAVES THE TRUE NUCLEOTIDE POSITION IN GSGD, MARRIES COLUMN WITH GSGD
     nuc_pos = len(cut_ref) #final nucleotide position
 
@@ -76,33 +82,57 @@ def nuc2aa(mut1,gappy_ref,n_before_orf,n_after_orf):
         return("non-coding before")
     elif nuc_pos > n_after_orf: #outside of open reading frame
         return("non-coding after")
-    elif mut1.split(sep = '_')[3] not in ["A","C","G","T","*"] or mut1.split(sep = '_')[2] not in ["A","C","G","T","*"]:
-        return ("invalid")
-    elif mut1.split(sep = '_')[2] == "*":
-        return("insertion")
-    elif mut1.split(sep = '_')[3] == "*":
-        return("deletion")
+
+    if known_prior==True:
+        if mut1.split(sep = '_')[2] not in ["A","C","G","T","*"] or mut1.split(sep = '_')[1] not in ["A","C","G","T","*"]:
+            return ("invalid")
+        elif mut1.split(sep = '_')[1] == "*":
+            return("insertion")
+        elif mut1.split(sep = '_')[2] == "*":
+            return("deletion")
+    if known_prior==False:
+        if mut1.split(sep = '_')[1] not in ["A","C","G","T","*"]:
+            return ("invalid")
+        elif mut1.split(sep = '_')[1] == "*":
+            return("deletion")        
 
     
     #SNP
     orf_pos = nuc_pos-n_before_orf #position in open reading frame
-    if nuc_pos % 3 == 1: #first position
-        #print full aa mutation
-        return(CODON[mut1.split(sep = '_')[2]+str(orf[orf_pos])+str(orf[orf_pos+1])]+ 
-              str(aa_pos)+#AA position
-              CODON[mut1.split(sep = '_')[3]+str(orf[orf_pos])+str(orf[orf_pos+1])])
-    
-    elif nuc_pos % 3 == 2: #second position
-        #print full aa mutation
-        return(CODON[orf[orf_pos-2]+mut1.split(sep = '_')[2]+orf[orf_pos]]+
-              str(aa_pos)+#AA position
-              CODON[orf[orf_pos-2]+mut1.split(sep = '_')[3]+orf[orf_pos]])
+
+    if known_prior==True: #mut1 provided in the format Position_BeforeNucleotide_AfterNucleotide
+        if orf_pos % 3 == 1: #first position
+            #print full aa mutation
+            return(CODON[mut1.split(sep = '_')[1]+str(orf[orf_pos])+str(orf[orf_pos+1])]+ 
+                  str(aa_pos)+#AA position
+                  CODON[mut1.split(sep = '_')[2]+str(orf[orf_pos])+str(orf[orf_pos+1])])
         
-    elif nuc_pos % 3 == 0: #third position
-        #print full aa mutation
-        return(CODON[orf[orf_pos-3]+orf[orf_pos-2]+mut1.split(sep = '_')[2]]+
-              str(aa_pos)+#AA position
-              CODON[orf[orf_pos-3]+orf[orf_pos-2]+mut1.split(sep = '_')[3]])
+        elif orf_pos % 3 == 2: #second position
+            #print full aa mutation
+            return(CODON[orf[orf_pos-2]+mut1.split(sep = '_')[1]+orf[orf_pos]]+
+                  str(aa_pos)+#AA position
+                  CODON[orf[orf_pos-2]+mut1.split(sep = '_')[2]+orf[orf_pos]])
+            
+        elif orf_pos % 3 == 0: #third position
+            #print full aa mutation
+            return(CODON[orf[orf_pos-3]+orf[orf_pos-2]+mut1.split(sep = '_')[1]]+
+                  str(aa_pos)+#AA position
+                  CODON[orf[orf_pos-3]+orf[orf_pos-2]+mut1.split(sep = '_')[2]])
+            
+    if known_prior==False: #mut1 provided in the format Position_AfterNucleotide
+        if orf_pos % 3 == 1: #first position
+            return(CODON[str(orf[orf_pos-1])+str(orf[orf_pos])+str(orf[orf_pos+1])]+ 
+                  str(aa_pos)+#AA position
+                  CODON[mut1.split(sep="_")[1].upper()+str(orf[orf_pos])+str(orf[orf_pos+1])])
+        elif orf_pos % 3 == 2: #second position
+            return(CODON[orf[orf_pos-2]+orf[orf_pos-1]+orf[orf_pos]]+
+                  str(aa_pos)+#AA position
+                  CODON[orf[orf_pos-2]+mut1.split(sep="_")[1].upper()+orf[orf_pos]])
+            
+        elif orf_pos % 3 == 0: #third position
+            return(CODON[orf[orf_pos-3]+orf[orf_pos-2]+orf[orf_pos-1]]+
+                  str(aa_pos)+#AA position
+                  CODON[orf[orf_pos-3]+orf[orf_pos-2]+mut1.split(sep="_")[1].upper()])
     
 def get_type(df):
 
@@ -146,7 +176,7 @@ def check_ifin_flumut(df,flumut_set):
     https://dms-vep.org/Flu_H5_American-Wigeon_South-Carolina_2021-H5N1_DMS/numbering.html
     They subtract 16 and use an American Wigeon from 2021, and after checking that the 
     sequence of my own american wigeon from 2021 matched the first 17 amino acids of GSGD,
-    I need to subtract 16 as well. Any mutations in the signal peptide region cannot be detected. 
+    Subtract 16 as well. Any mutations in the signal peptide region cannot be detected. 
     This does not change the position as listed by the AA mutation column
 
     2026/08/19
