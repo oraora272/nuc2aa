@@ -41,7 +41,7 @@ CODON = {
     'NNN':'ambiguous'
 }
 
-def nuc2aa(mut1,gappy_ref,n_before_orf,n_after_orf,known_prior=True): 
+def nuc2aa(mut1,gappy_ref,n_before_orf=False,n_after_orf=False,known_prior=True): 
 
     '''
     mut1: string in format such as 505_G_A (Position_BeforeNucleotide_AfterNucleotide)
@@ -51,7 +51,9 @@ def nuc2aa(mut1,gappy_ref,n_before_orf,n_after_orf,known_prior=True):
     gappy_ref: string, should be the reference sequence aligned to the rest of the sequences while maintaining length of alignment, e.g.
         mafft --add refseq.fasta --keeplength alignment.fasta > ref_and_alignment.fasta
     n_before_orf: interger, how many nucleotides before the open reading frame. ==21 nucleotides for HA
-    n_after_orf: interger, last nucleotide position of the open reading frame. == n_before_orf + len(orf) == 1728 for HA 
+        If set as False or not set, will auto-detect using the reference. Must set both or neither n_before_orf and n_after_orf
+    n_after_orf: interger, last nucleotide position of the open reading frame including stop. == n_before_orf + len(orf) == 1728 for HA 
+        If set as False or not set, will auto-detect using the reference. Must set both or neither n_before_orf and n_after_orf
     known_prior: set to False if the prior nucleotide is unknown, and set mut1 in format Position_AfterNucleotide
 
     note1: if nucleotide is ambiguous, it will return as ambiguous
@@ -66,6 +68,10 @@ def nuc2aa(mut1,gappy_ref,n_before_orf,n_after_orf,known_prior=True):
     #just in case mutation and/or sequence aren't capitalized
     mut1 = mut1.upper()
     gappy_ref = gappy_ref.upper()
+
+    #if the open reading frame is unknown, auto-detect
+    if (n_before_orf)==False & (n_after_orf)==False:
+        n_before_orf,n_after_orf = auto_orf_finder(gappy_ref.replace('-',''))
     
     #Get nucleotide position
     column_pos = int(mut1.split(sep = '_')[0]) #column position, aligned to all amino acids
@@ -133,6 +139,51 @@ def nuc2aa(mut1,gappy_ref,n_before_orf,n_after_orf,known_prior=True):
             return(CODON[orf[orf_pos-3]+orf[orf_pos-2]+orf[orf_pos-1]]+
                   str(aa_pos)+#AA position
                   CODON[orf[orf_pos-3]+orf[orf_pos-2]+mut1.split(sep="_")[1].upper()])
+    
+def auto_orf_finder(ref):
+    '''
+    ref: string in format such as "AATGTGAC" containing only uppercase letters A,T,C,G
+        should contain stop ["TAA","TAG","TGA"] and start codon ["ATG"]
+
+    Returns:
+        n_before_orf: number of nucleotides before the open reading frame
+        n_after_orf: final nucleotide position in open reading frame e.g. last nucleotide in stop codon (including all nucleotides in ref sequence)
+        In the example AATGTGAC, n_before_orf==1 as there is one nucleotide before sequence ATG, n_after_orf==4 
+            as the last nucleotide is the fourth, "G" before the stop codon TGA
+    
+    note: the user will be notified if no start/stop codon can be found. If no start codon is found, the stop codon
+        check will always be false, as it relies on the reading frame provided by the start codon.
+    
+    2026/11/04
+    Deanna Tait
+    '''
+    found_start=False #check for start/stop codons being found
+    found_stop=False
+    nucleo=0 #current frame being analyzed
+    n_before_orf=False #set return variable
+    n_after_orf=False
+    
+    while (len(ref[nucleo:nucleo+3])==3) &(found_stop==False): #ends at either end of reference or when stop codon in orf found
+        if (ref[nucleo:nucleo+3] == "ATG") & (found_start==False): #check for start codon, avoid setting to met within orf
+            n_before_orf = nucleo
+            found_start = True
+        if (ref[nucleo:nucleo+3] in ["TAA","TAG","TGA"]) & (found_start==True): #check for stop codon, make sure start codon exists
+            n_after_orf = nucleo+3
+            found_stop = True
+        if found_start == False:
+            nucleo+=1 #move along reference
+        else: 
+            nucleo+=3 #after finding start, find stop codon. It must be in the same frame as start codon
+    
+    if found_start==False:
+        print("Error: no start codon ATG found")
+    else:
+        print("n before: "+str(n_before_orf))
+        if found_stop==False: #Only return stop stop codon if start codon found, as it would be meaningless
+            print("Error: no stop codon in orf found")
+        else:
+            print("n last: "+str(n_after_orf))
+    return(n_before_orf,n_after_orf)
     
 def get_type(df):
 
