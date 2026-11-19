@@ -21,8 +21,8 @@ nuc2aa(mut,ref,n_bef,n_aft,known_prior=True)
 
 ## Anticipated updates:
 
-- Allow ambiguous nucleotides
+- [ ] Allow ambiguous nucleotides
 
-- Return position in case of insertion/deletion
+- [ ] Return position in case of insertion/deletion
 
-[x] Automatic detection of start and stop codon, with nucleotides before/after (complete, note that reference frame of first ATG always used)
+- [x] Automatic detection of start and stop codon, with nucleotides before/after (complete, note that reference frame of first ATG always used)
