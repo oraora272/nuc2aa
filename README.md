@@ -25,4 +25,4 @@ nuc2aa(mut,ref,n_bef,n_aft,known_prior=True)
 
 - Return position in case of insertion/deletion
 
-- Automatic detection of start and stop codon, with nucleotides before/after
+[x] Automatic detection of start and stop codon, with nucleotides before/after (complete, note that reference frame of first ATG always used)
